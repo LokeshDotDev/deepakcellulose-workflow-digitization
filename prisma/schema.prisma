@@ -1,0 +1,1236 @@
+// Prisma Schema for Deepak Cellulose Manufacturing ERP
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ----------------------------------------------------
+// 1. IDENTITY & RBAC
+// ----------------------------------------------------
+
+enum DepartmentCode {
+  ADMIN
+  PURCHASE
+  GATE
+  WAREHOUSE
+  QC
+  PRODUCTION
+  FINISHED_GOODS
+  DISPATCH
+  ACCOUNTS
+  MANAGEMENT
+}
+
+model Department {
+  id          String         @id @default(uuid())
+  code        DepartmentCode @unique
+  name        String
+  description String?
+  isActive    Boolean        @default(true)
+  users       User[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String
+  fullName     String
+  employeeCode String?       @unique
+  phone        String?
+  avatar       String?
+  isActive     Boolean       @default(true)
+  departmentId String?
+  department   Department?   @relation(fields: [departmentId], references: [id])
+  userRoles    UserRole[]
+  auditLogs    AuditLog[]
+  notifications Notification[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  code        String           @unique
+  name        String
+  description String?
+  isSystem    Boolean          @default(false)
+  userRoles   UserRole[]
+  permissions RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique
+  module      String
+  action      String
+  description String?
+  roles       RolePermission[]
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, roleId])
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+// ----------------------------------------------------
+// 2. MASTER DATA & UNITS OF MEASURE
+// ----------------------------------------------------
+
+enum UnitType {
+  MASS
+  VOLUME
+  PACKAGING
+  COUNT
+}
+
+model UnitOfMeasure {
+  id                     String                   @id @default(uuid())
+  code                   String                   @unique // KG, MT, GM, LTR, DRUM, BAG
+  name                   String
+  type                   UnitType
+  baseUnitId             String?
+  conversionFactorToBase Decimal                  @default(1.0) @db.Decimal(12, 6)
+  precision              Int                      @default(2)
+  isActive               Boolean                  @default(true)
+  fromConversions        MaterialUnitConversion[] @relation("FromUnit")
+  toConversions          MaterialUnitConversion[] @relation("ToUnit")
+  materials              Material[]
+  products               Product[]
+  packagingTypes         PackagingType[]
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+}
+
+model MaterialUnitConversion {
+  id         String        @id @default(uuid())
+  materialId String
+  material   Material      @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  fromUnitId String
+  fromUnit   UnitOfMeasure @relation("FromUnit", fields: [fromUnitId], references: [id])
+  toUnitId   String
+  toUnit     UnitOfMeasure @relation("ToUnit", fields: [toUnitId], references: [id])
+  factor     Decimal       @db.Decimal(12, 6)
+  notes      String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([materialId, fromUnitId, toUnitId])
+}
+
+model PackagingType {
+  id             String                @id @default(uuid())
+  code           String                @unique
+  name           String
+  capacity       Decimal               @db.Decimal(12, 3)
+  unitId         String
+  unit           UnitOfMeasure         @relation(fields: [unitId], references: [id])
+  isActive       Boolean               @default(true)
+  fgReceipts     FinishedGoodsReceipt[]
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+}
+
+enum MaterialType {
+  RAW_MATERIAL
+  PACKING_MATERIAL
+  CONSUMABLE
+}
+
+model Material {
+  id             String                   @id @default(uuid())
+  code           String                   @unique
+  name           String
+  type           MaterialType             @default(RAW_MATERIAL)
+  category       String?
+  description    String?
+  baseUnitId     String
+  baseUnit       UnitOfMeasure            @relation(fields: [baseUnitId], references: [id])
+  minStockAlert  Decimal                  @default(0) @db.Decimal(12, 3)
+  maxStockLimit  Decimal?                 @db.Decimal(12, 3)
+  reorderPoint   Decimal                  @default(0) @db.Decimal(12, 3)
+  qcRequired     Boolean                  @default(true)
+  isActive       Boolean                  @default(true)
+  conversions    MaterialUnitConversion[]
+  poLines        PurchaseOrderLine[]
+  grnLines       GoodsReceiptLine[]
+  inventoryLots  InventoryLot[]
+  formulaLines   FormulaLine[]
+  qcSpecs        QCSpecification[]
+  batchConsumptions BatchMaterialConsumption[]
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+}
+
+model Product {
+  id                String                 @id @default(uuid())
+  code              String                 @unique
+  name              String
+  grade             String?                // e.g. Pharma IP/BP/USP, Food Grade, Industrial
+  description       String?
+  baseUnitId        String
+  baseUnit          UnitOfMeasure          @relation(fields: [baseUnitId], references: [id])
+  shelfLifeDays     Int?
+  qcRequired        Boolean                @default(true)
+  standardBatchSize Decimal                @default(1000) @db.Decimal(12, 3)
+  isActive          Boolean                @default(true)
+  formulas          Formula[]
+  productionOrders  ProductionOrder[]
+  finishedLots      FinishedGoodsLot[]
+  inventoryLots     InventoryLot[]
+  customerOrderLines CustomerOrderLine[]
+  fgReceipts        FinishedGoodsReceipt[]
+  dispatchLines     DispatchLine[]
+  qcSpecs           QCSpecification[]
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+}
+
+enum WarehouseType {
+  RAW_MATERIAL
+  FINISHED_GOODS
+  QUARANTINE
+  REJECTED
+  PRODUCTION_STAGING
+}
+
+model Warehouse {
+  id          String              @id @default(uuid())
+  code        String              @unique
+  name        String
+  type        WarehouseType
+  address     String?
+  isActive    Boolean             @default(true)
+  locations   WarehouseLocation[]
+  lots        InventoryLot[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model WarehouseLocation {
+  id          String         @id @default(uuid())
+  warehouseId String
+  warehouse   Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  code        String         // e.g. RACK-A1-BIN01
+  zone        String?
+  rack        String?
+  bin         String?
+  maxCapacity Decimal?       @db.Decimal(12, 3)
+  isActive    Boolean        @default(true)
+  lots        InventoryLot[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([warehouseId, code])
+}
+
+model Equipment {
+  id          String     @id @default(uuid())
+  code        String     @unique
+  name        String
+  stageType   String?
+  capacity    Decimal?   @db.Decimal(12, 3)
+  unit        String?
+  status      String     @default("ACTIVE") // ACTIVE, MAINTENANCE, IDLE
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Supplier {
+  id            String          @id @default(uuid())
+  code          String          @unique
+  name          String
+  contactPerson String?
+  email         String?
+  phone         String?
+  gstNumber     String?
+  address       String?
+  paymentTerms  String?
+  rating        Decimal?        @db.Decimal(3, 2)
+  isActive      Boolean         @default(true)
+  purchaseOrders PurchaseOrder[]
+  gateEntries   GateEntry[]
+  goodsReceipts GoodsReceipt[]
+  invoices      SupplierInvoice[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model Customer {
+  id             String          @id @default(uuid())
+  code           String          @unique
+  name           String
+  contactPerson  String?
+  email          String?
+  phone          String?
+  gstNumber      String?
+  billingAddress String?
+  shippingAddress String?
+  paymentTerms   String?
+  creditLimit    Decimal?        @db.Decimal(14, 2)
+  isActive       Boolean         @default(true)
+  orders         CustomerOrder[]
+  dispatches     Dispatch[]
+  salesInvoices  SalesInvoice[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+// ----------------------------------------------------
+// 3. DYNAMIC CONFIGURATION ENGINE & WORKFLOWS
+// ----------------------------------------------------
+
+model FormDefinition {
+  id          String        @id @default(uuid())
+  code        String        @unique
+  name        String
+  entityType  String
+  description String?
+  isActive    Boolean       @default(true)
+  versions    FormVersion[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model FormVersion {
+  id               String         @id @default(uuid())
+  formDefinitionId String
+  formDefinition   FormDefinition @relation(fields: [formDefinitionId], references: [id], onDelete: Cascade)
+  version          Int
+  schema           Json           // JSON field definitions and validation rules
+  uiSchema         Json?          // layout, order, grouping
+  status           String         @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
+  publishedAt      DateTime?
+  publishedById    String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([formDefinitionId, version])
+}
+
+model DocumentTemplate {
+  id          String                    @id @default(uuid())
+  code        String                    @unique
+  name        String
+  entityType  String
+  description String?
+  isActive    Boolean                   @default(true)
+  versions    DocumentTemplateVersion[]
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+}
+
+model DocumentTemplateVersion {
+  id           String           @id @default(uuid())
+  templateId   String
+  template     DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version      Int
+  headerConfig Json?
+  footerConfig Json?
+  layoutConfig Json?
+  fieldsConfig Json
+  status       String           @default("DRAFT")
+  publishedAt  DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([templateId, version])
+}
+
+model WorkflowDefinition {
+  id          String            @id @default(uuid())
+  code        String            @unique
+  name        String
+  entityType  String
+  description String?
+  isActive    Boolean           @default(true)
+  versions    WorkflowVersion[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model WorkflowVersion {
+  id                   String             @id @default(uuid())
+  workflowDefinitionId String
+  workflowDefinition   WorkflowDefinition @relation(fields: [workflowDefinitionId], references: [id], onDelete: Cascade)
+  version              Int
+  stages               Json               // Array of stage definitions: code, name, department, roleRequired
+  transitions          Json               // Array of allowed transitions, validations, auto-triggers
+  status               String             @default("DRAFT")
+  publishedAt          DateTime?
+  instances            WorkflowInstance[]
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@unique([workflowDefinitionId, version])
+}
+
+model WorkflowInstance {
+  id                String                      @id @default(uuid())
+  entityType        String
+  entityId          String
+  currentStage      String
+  status            String                      @default("IN_PROGRESS") // IN_PROGRESS, APPROVED, REJECTED, CANCELLED
+  workflowVersionId String
+  workflowVersion   WorkflowVersion             @relation(fields: [workflowVersionId], references: [id])
+  history           WorkflowTransitionHistory[]
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+
+  @@index([entityType, entityId])
+}
+
+model WorkflowTransitionHistory {
+  id                 String           @id @default(uuid())
+  workflowInstanceId String
+  workflowInstance   WorkflowInstance @relation(fields: [workflowInstanceId], references: [id], onDelete: Cascade)
+  fromStage          String
+  toStage            String
+  action             String
+  actorId            String
+  comments           String?
+  metadata           Json?
+  timestamp          DateTime         @default(now())
+}
+
+model NumberingSequence {
+  id            String   @id @default(uuid())
+  entityType    String   @unique
+  prefix        String
+  suffix        String?
+  yearFormat    String?  // YY, YYYY
+  currentNumber Int      @default(0)
+  paddingLength Int      @default(4)
+  resetPeriod   String   @default("ANNUAL") // ANNUAL, MONTHLY, NEVER
+  lastResetDate DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ----------------------------------------------------
+// 4. PROCUREMENT & SECURITY GATE
+// ----------------------------------------------------
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  SENT_TO_SUPPLIER
+  PARTIALLY_RECEIVED
+  FULLY_RECEIVED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id                   String              @id @default(uuid())
+  poNumber             String              @unique
+  supplierId           String
+  supplier             Supplier            @relation(fields: [supplierId], references: [id])
+  orderDate            DateTime            @default(now())
+  expectedDeliveryDate DateTime?
+  status               PurchaseOrderStatus @default(DRAFT)
+  subtotal             Decimal             @default(0) @db.Decimal(14, 2)
+  taxAmount            Decimal             @default(0) @db.Decimal(14, 2)
+  totalAmount          Decimal             @default(0) @db.Decimal(14, 2)
+  currency             String              @default("INR")
+  paymentTerms         String?
+  notes                String?
+  approvedById         String?
+  approvedAt           DateTime?
+  revisionNumber       Int                 @default(1)
+  lines                PurchaseOrderLine[]
+  gateEntries          GateEntry[]
+  goodsReceipts        GoodsReceipt[]
+  supplierInvoices     SupplierInvoice[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+}
+
+model PurchaseOrderLine {
+  id               String             @id @default(uuid())
+  purchaseOrderId  String
+  purchaseOrder    PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  materialId       String
+  material         Material           @relation(fields: [materialId], references: [id])
+  quantity         Decimal            @db.Decimal(12, 3)
+  unitId           String
+  unitPrice        Decimal            @db.Decimal(14, 2)
+  taxRate          Decimal            @default(18.0) @db.Decimal(5, 2)
+  totalPrice       Decimal            @db.Decimal(14, 2)
+  receivedQuantity Decimal            @default(0) @db.Decimal(12, 3)
+  acceptedQuantity Decimal            @default(0) @db.Decimal(12, 3)
+  rejectedQuantity Decimal            @default(0) @db.Decimal(12, 3)
+  notes            String?
+  grnLines         GoodsReceiptLine[]
+}
+
+enum GateEntryStatus {
+  RECORDED
+  SENT_TO_WAREHOUSE
+  COMPLETED
+  CANCELLED
+}
+
+model GateEntry {
+  id                    String          @id @default(uuid())
+  gatePassNumber        String          @unique
+  arrivalTime           DateTime        @default(now())
+  departureTime         DateTime?
+  supplierId            String
+  supplier              Supplier        @relation(fields: [supplierId], references: [id])
+  vehicleNumber         String
+  driverName            String
+  driverPhone           String?
+  challanNumber         String
+  challanDate           DateTime
+  purchaseOrderId       String?
+  purchaseOrder         PurchaseOrder?  @relation(fields: [purchaseOrderId], references: [id])
+  declaredMaterials     String?
+  declaredQuantity      Decimal?        @db.Decimal(12, 3)
+  declaredUnit          String?
+  numberOfPackages      Int?
+  weighbridgeGrossWeight Decimal?       @db.Decimal(12, 3)
+  weighbridgeTareWeight  Decimal?       @db.Decimal(12, 3)
+  weighbridgeNetWeight   Decimal?       @db.Decimal(12, 3)
+  securityOfficerId     String?
+  status                GateEntryStatus @default(RECORDED)
+  remarks               String?
+  photoUrls             Json?
+  goodsReceipt          GoodsReceipt?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+}
+
+// ----------------------------------------------------
+// 5. WAREHOUSE & INVENTORY
+// ----------------------------------------------------
+
+enum GoodsReceiptStatus {
+  DRAFT
+  RECEIVED_PENDING_QC
+  PARTIALLY_ACCEPTED
+  COMPLETED
+  CANCELLED
+}
+
+model GoodsReceipt {
+  id                    String              @id @default(uuid())
+  grnNumber             String              @unique
+  gateEntryId           String?             @unique
+  gateEntry             GateEntry?          @relation(fields: [gateEntryId], references: [id])
+  purchaseOrderId       String?
+  purchaseOrder         PurchaseOrder?      @relation(fields: [purchaseOrderId], references: [id])
+  supplierId            String
+  supplier              Supplier            @relation(fields: [supplierId], references: [id])
+  supplierChallanNumber String
+  challanDate           DateTime
+  receiptDate           DateTime            @default(now())
+  receivedById          String?
+  status                GoodsReceiptStatus  @default(RECEIVED_PENDING_QC)
+  remarks               String?
+  lines                 GoodsReceiptLine[]
+  qcInspections         QCInspection[]
+  supplierInvoices      SupplierInvoice[]
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+}
+
+model GoodsReceiptLine {
+  id                  String             @id @default(uuid())
+  goodsReceiptId      String
+  goodsReceipt        GoodsReceipt       @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  poLineId            String?
+  poLine              PurchaseOrderLine? @relation(fields: [poLineId], references: [id])
+  materialId          String
+  material            Material           @relation(fields: [materialId], references: [id])
+  declaredQuantity    Decimal            @db.Decimal(12, 3)
+  receivedQuantity    Decimal            @db.Decimal(12, 3)
+  acceptedQuantity    Decimal            @default(0) @db.Decimal(12, 3)
+  rejectedQuantity    Decimal            @default(0) @db.Decimal(12, 3)
+  unit                String
+  warehouseId         String
+  locationId          String?
+  supplierBatchNumber String?
+  internalLot         InventoryLot?
+  damageShortageNotes String?
+  createdAt           DateTime           @default(now())
+}
+
+enum InventoryLotStatus {
+  RECEIVED_PENDING_QC
+  QUARANTINED
+  QC_APPROVED
+  AVAILABLE
+  RESERVED
+  ISSUED_TO_PRODUCTION
+  REJECTED
+  RETURNED_TO_SUPPLIER
+  BLOCKED
+  DISPATCHED
+}
+
+model InventoryLot {
+  id                  String             @id @default(uuid())
+  lotNumber           String             @unique
+  entityType          String             @default("RAW_MATERIAL") // RAW_MATERIAL, FINISHED_GOODS
+  materialId          String?
+  material            Material?          @relation(fields: [materialId], references: [id])
+  productId           String?
+  product             Product?           @relation(fields: [productId], references: [id])
+  initialQuantity     Decimal            @db.Decimal(12, 3)
+  currentQuantity     Decimal            @db.Decimal(12, 3)
+  reservedQuantity    Decimal            @default(0) @db.Decimal(12, 3)
+  unit                String
+  warehouseId         String
+  warehouse           Warehouse          @relation(fields: [warehouseId], references: [id])
+  locationId          String?
+  location            WarehouseLocation? @relation(fields: [locationId], references: [id])
+  status              InventoryLotStatus @default(RECEIVED_PENDING_QC)
+  manufacturingDate   DateTime?
+  expiryDate          DateTime?
+  retestDate          DateTime?
+  supplierBatchNumber String?
+  grnLineId           String?            @unique
+  grnLine             GoodsReceiptLine?  @relation(fields: [grnLineId], references: [id])
+  batchId             String?
+  batch               Batch?             @relation(fields: [batchId], references: [id])
+  qrCode              String?
+  qcInspections       QCInspection[]
+  materialDispositions MaterialDisposition[]
+  batchConsumptions   BatchMaterialConsumption[]
+  ledgerEntries       InventoryLedgerEntry[]
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([materialId, status])
+  @@index([productId, status])
+}
+
+enum InventoryTransactionType {
+  GRN_RECEIPT
+  QC_RELEASE
+  QC_REJECT
+  PRODUCTION_ISSUE
+  PRODUCTION_RETURN
+  FG_RECEIPT
+  FG_RELEASE
+  FG_DISPATCH
+  STOCK_TRANSFER
+  STOCK_ADJUSTMENT
+}
+
+model InventoryLedgerEntry {
+  id                String                   @id @default(uuid())
+  transactionNumber String                   @unique
+  transactionType   InventoryTransactionType
+  materialId        String?
+  productId         String?
+  lotId             String?
+  lot               InventoryLot?            @relation(fields: [lotId], references: [id])
+  quantity          Decimal                  @db.Decimal(12, 3)
+  unit              String
+  fromWarehouseId   String?
+  fromLocationId    String?
+  toWarehouseId     String?
+  toLocationId      String?
+  fromStatus        InventoryLotStatus?
+  toStatus          InventoryLotStatus?
+  referenceType     String                   // PO, GRN, QC, PRODUCTION_ORDER, BATCH, DISPATCH, ADJUSTMENT
+  referenceId       String
+  actorId           String?
+  reason            String?
+  timestamp         DateTime                 @default(now())
+
+  @@index([lotId])
+  @@index([transactionType])
+}
+
+// ----------------------------------------------------
+// 6. QUALITY CONTROL & ASSURANCE (QC/QA)
+// ----------------------------------------------------
+
+enum QCSpecificationTarget {
+  RAW_MATERIAL
+  FINISHED_GOODS
+  IN_PROCESS
+}
+
+model QCSpecification {
+  id             String                     @id @default(uuid())
+  code           String                     @unique
+  name           String
+  targetType     QCSpecificationTarget
+  materialId     String?
+  material       Material?                  @relation(fields: [materialId], references: [id])
+  productId      String?
+  product        Product?                   @relation(fields: [productId], references: [id])
+  revisionNumber Int                        @default(1)
+  effectiveDate  DateTime                   @default(now())
+  status         String                     @default("APPROVED") // DRAFT, APPROVED, SUPERSEDED
+  approvedById   String?
+  parameters     QCSpecificationParameter[]
+  inspections    QCInspection[]
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  @@unique([code, revisionNumber])
+}
+
+model QCSpecificationParameter {
+  id                  String               @id @default(uuid())
+  specificationId     String
+  specification       QCSpecification      @relation(fields: [specificationId], references: [id], onDelete: Cascade)
+  parameterName       String
+  testMethod          String?
+  unit                String?
+  minLimit            Decimal?             @db.Decimal(10, 4)
+  maxLimit            Decimal?             @db.Decimal(10, 4)
+  targetValue         String?
+  qualitativeCriteria String?
+  isMandatory         Boolean              @default(true)
+  sequence            Int                  @default(1)
+  results             QCInspectionResult[]
+}
+
+enum QCInspectionStatus {
+  PENDING
+  IN_TESTING
+  AWAITING_APPROVAL
+  APPROVED
+  REJECTED
+  QUARANTINE_HOLD
+}
+
+model QCInspection {
+  id              String                 @id @default(uuid())
+  inspectionNumber String                @unique
+  stage           String                 // INCOMING_RM, IN_PROCESS, FINISHED_GOODS
+  specificationId String?
+  specification   QCSpecification?       @relation(fields: [specificationId], references: [id])
+  lotId           String?
+  lot             InventoryLot?          @relation(fields: [lotId], references: [id])
+  grnId           String?
+  grn             GoodsReceipt?          @relation(fields: [grnId], references: [id])
+  batchId         String?
+  batch           Batch?                 @relation(fields: [batchId], references: [id])
+  sampleQuantity  Decimal?               @db.Decimal(10, 3)
+  sampleUnit      String?
+  inspectionDate  DateTime               @default(now())
+  inspectorId     String?
+  status          QCInspectionStatus     @default(PENDING)
+  coaNumber       String?
+  remarks         String?
+  approvedById    String?
+  approvedAt      DateTime?
+  results         QCInspectionResult[]
+  dispositions    MaterialDisposition[]
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+}
+
+model QCInspectionResult {
+  id                  String                    @id @default(uuid())
+  inspectionId        String
+  inspection          QCInspection              @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  parameterId         String?
+  parameter           QCSpecificationParameter? @relation(fields: [parameterId], references: [id])
+  testName            String
+  testMethod          String?
+  expectedMin         Decimal?                  @db.Decimal(10, 4)
+  expectedMax         Decimal?                  @db.Decimal(10, 4)
+  expectedCriteria    String?
+  observedValue       Decimal?                  @db.Decimal(10, 4)
+  qualitativeResult   String?
+  isConforming        Boolean                   @default(true)
+  remarks             String?
+}
+
+enum DispositionType {
+  APPROVED_FOR_RELEASE
+  REJECTED
+  QUARANTINED
+  AUTHORIZED_DEVIATION
+  SUPPLIER_RETURN
+}
+
+model MaterialDisposition {
+  id                String          @id @default(uuid())
+  dispositionNumber String          @unique
+  inspectionId      String
+  inspection        QCInspection    @relation(fields: [inspectionId], references: [id])
+  lotId             String
+  lot               InventoryLot    @relation(fields: [lotId], references: [id])
+  disposition       DispositionType
+  authorizedById    String
+  releaseNoteNumber String?
+  reason            String?
+  remarks           String?
+  createdAt         DateTime        @default(now())
+}
+
+// ----------------------------------------------------
+// 7. PRODUCTION & BATCH MANUFACTURING (BMR)
+// ----------------------------------------------------
+
+model Formula {
+  id                     String            @id @default(uuid())
+  formulaCode            String            @unique
+  name                   String
+  productId              String
+  product                Product           @relation(fields: [productId], references: [id])
+  revisionNumber         Int               @default(1)
+  status                 String            @default("APPROVED") // DRAFT, APPROVED, SUPERSEDED
+  standardBatchSize      Decimal           @db.Decimal(12, 3)
+  unit                   String            @default("KG")
+  expectedYieldPercentage Decimal          @default(98.5) @db.Decimal(5, 2)
+  description            String?
+  approvedById           String?
+  approvedAt             DateTime?
+  lines                  FormulaLine[]
+  stages                 FormulaStage[]
+  productionOrders       ProductionOrder[]
+  batches                Batch[]
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  @@unique([formulaCode, revisionNumber])
+}
+
+model FormulaLine {
+  id                  String   @id @default(uuid())
+  formulaId           String
+  formula             Formula  @relation(fields: [formulaId], references: [id], onDelete: Cascade)
+  materialId          String
+  material            Material @relation(fields: [materialId], references: [id])
+  standardQuantity    Decimal  @db.Decimal(12, 3)
+  unit                String
+  tolerancePercentage Decimal  @default(2.0) @db.Decimal(5, 2)
+  isSubstituteAllowed Boolean  @default(false)
+  sequenceOrder       Int      @default(1)
+}
+
+model FormulaStage {
+  id                       String  @id @default(uuid())
+  formulaId                String
+  formula                  Formula @relation(fields: [formulaId], references: [id], onDelete: Cascade)
+  stageName                String
+  sequenceOrder            Int     @default(1)
+  equipmentType            String?
+  instructions             String?
+  estimatedDurationMinutes Int?
+  mandatoryQCCheck         Boolean @default(false)
+}
+
+enum ProductionOrderStatus {
+  PLANNED
+  RELEASED
+  MATERIAL_RESERVED
+  IN_PRODUCTION
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+model ProductionOrder {
+  id                   String                @id @default(uuid())
+  orderNumber          String                @unique
+  productId            String
+  product              Product               @relation(fields: [productId], references: [id])
+  formulaId            String
+  formula              Formula               @relation(fields: [formulaId], references: [id])
+  plannedQuantity      Decimal               @db.Decimal(12, 3)
+  unit                 String
+  startDate            DateTime?
+  targetCompletionDate DateTime?
+  actualCompletionDate DateTime?
+  priority             String                @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  status               ProductionOrderStatus @default(PLANNED)
+  assignedSupervisorId String?
+  notes                String?
+  batches              Batch[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+}
+
+enum BatchStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+  ON_HOLD
+}
+
+model Batch {
+  id                     String                     @id @default(uuid())
+  batchNumber            String                     @unique
+  productionOrderId      String
+  productionOrder        ProductionOrder            @relation(fields: [productionOrderId], references: [id])
+  formulaId              String
+  formula                Formula                    @relation(fields: [formulaId], references: [id])
+  plannedQuantity        Decimal                    @db.Decimal(12, 3)
+  actualQuantityProduced Decimal?                   @db.Decimal(12, 3)
+  unit                   String
+  status                 BatchStatus                @default(SCHEDULED)
+  startedAt              DateTime?
+  completedAt            DateTime?
+  operatorId             String?
+  supervisorId           String?
+  yieldVariancePercentage Decimal?                  @db.Decimal(5, 2)
+  notes                  String?
+  consumptions           BatchMaterialConsumption[]
+  operations             BatchOperation[]
+  deviations             BatchDeviation[]
+  qcInspections          QCInspection[]
+  finishedReceipts       FinishedGoodsReceipt[]
+  inventoryLots          InventoryLot[]
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+}
+
+model BatchMaterialConsumption {
+  id             String        @id @default(uuid())
+  batchId        String
+  batch          Batch         @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  materialId     String
+  material       Material      @relation(fields: [materialId], references: [id])
+  lotId          String
+  lot            InventoryLot  @relation(fields: [lotId], references: [id])
+  plannedQuantity Decimal      @db.Decimal(12, 3)
+  actualQuantity Decimal       @db.Decimal(12, 3)
+  unit           String
+  variance       Decimal       @default(0) @db.Decimal(12, 3)
+  issueSlipNumber String?
+  issuedById     String?
+  createdAt      DateTime      @default(now())
+}
+
+model BatchOperation {
+  id                 String    @id @default(uuid())
+  batchId            String
+  batch              Batch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  stageName          String
+  sequenceOrder      Int
+  equipmentId        String?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  operatorId         String?
+  parametersRecorded Json?
+  status             String    @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  remarks            String?
+}
+
+model BatchDeviation {
+  id              String   @id @default(uuid())
+  batchId         String
+  batch           Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  deviationNumber String   @unique
+  stageName       String?
+  description     String
+  severity        String   @default("MINOR") // MINOR, MAJOR, CRITICAL
+  rootCause       String?
+  correctiveAction String?
+  reportedById    String?
+  approvedById    String?
+  status          String   @default("OPEN") // OPEN, UNDER_REVIEW, CLOSED
+  createdAt       DateTime @default(now())
+}
+
+// ----------------------------------------------------
+// 8. FINISHED GOODS & DISPATCH LOGISTICS
+// ----------------------------------------------------
+
+model FinishedGoodsReceipt {
+  id              String         @id @default(uuid())
+  receiptNumber   String         @unique
+  batchId         String
+  batch           Batch          @relation(fields: [batchId], references: [id])
+  productId       String
+  product         Product        @relation(fields: [productId], references: [id])
+  producedQuantity Decimal       @db.Decimal(12, 3)
+  unit            String
+  packageCount    Int
+  packagingTypeId String
+  packagingType   PackagingType  @relation(fields: [packagingTypeId], references: [id])
+  warehouseId     String
+  locationId      String?
+  receivedById    String?
+  qcStatus        String         @default("PENDING_QC") // PENDING_QC, APPROVED, REJECTED
+  fgLot           FinishedGoodsLot?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model FinishedGoodsLot {
+  id                String                 @id @default(uuid())
+  lotNumber         String                 @unique
+  receiptId         String                 @unique
+  receipt           FinishedGoodsReceipt   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  productId         String
+  product           Product                @relation(fields: [productId], references: [id])
+  initialQuantity   Decimal                @db.Decimal(12, 3)
+  currentQuantity   Decimal                @db.Decimal(12, 3)
+  reservedQuantity  Decimal                @default(0) @db.Decimal(12, 3)
+  unit              String
+  warehouseId       String
+  locationId        String?
+  status            String                 @default("QC_APPROVED") // PENDING_QC, QC_APPROVED, AVAILABLE, RESERVED, DISPATCHED, BLOCKED
+  manufacturingDate DateTime
+  expiryDate        DateTime?
+  allocations       DispatchLotAllocation[]
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([productId, status])
+}
+
+enum CustomerOrderStatus {
+  DRAFT
+  CONFIRMED
+  PROCESSING
+  PARTIALLY_DISPATCHED
+  FULLY_DISPATCHED
+  CANCELLED
+}
+
+model CustomerOrder {
+  id                   String              @id @default(uuid())
+  orderNumber          String              @unique
+  customerId           String
+  customer             Customer            @relation(fields: [customerId], references: [id])
+  customerPoNumber     String
+  orderDate            DateTime            @default(now())
+  requiredDeliveryDate DateTime?
+  status               CustomerOrderStatus @default(DRAFT)
+  subtotal             Decimal             @default(0) @db.Decimal(14, 2)
+  taxAmount            Decimal             @default(0) @db.Decimal(14, 2)
+  totalAmount          Decimal             @default(0) @db.Decimal(14, 2)
+  approvedById         String?
+  paymentTerms         String?
+  lines                CustomerOrderLine[]
+  dispatches           Dispatch[]
+  salesInvoices        SalesInvoice[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+}
+
+model CustomerOrderLine {
+  id                 String             @id @default(uuid())
+  customerOrderId    String
+  customerOrder      CustomerOrder      @relation(fields: [customerOrderId], references: [id], onDelete: Cascade)
+  productId          String
+  product            Product            @relation(fields: [productId], references: [id])
+  orderedQuantity    Decimal            @db.Decimal(12, 3)
+  unit               String
+  unitPrice          Decimal            @db.Decimal(14, 2)
+  taxRate            Decimal            @default(18.0) @db.Decimal(5, 2)
+  totalPrice         Decimal            @db.Decimal(14, 2)
+  dispatchedQuantity Decimal            @default(0) @db.Decimal(12, 3)
+  remainingQuantity  Decimal            @db.Decimal(12, 3)
+  dispatchLines      DispatchLine[]
+}
+
+enum DispatchStatus {
+  DRAFT
+  ALLOCATED
+  DISPATCHED
+  DELIVERED
+  CANCELLED
+}
+
+model Dispatch {
+  id                    String         @id @default(uuid())
+  dispatchChallanNumber String         @unique
+  customerOrderId       String
+  customerOrder         CustomerOrder  @relation(fields: [customerOrderId], references: [id])
+  customerId            String
+  customer              Customer       @relation(fields: [customerId], references: [id])
+  dispatchDate          DateTime       @default(now())
+  status                DispatchStatus @default(DRAFT)
+  transporterName       String?
+  vehicleNumber         String?
+  driverName            String?
+  driverPhone           String?
+  lrNumber              String?        // Lorry receipt number
+  totalPackages         Int?
+  netWeight             Decimal?       @db.Decimal(12, 3)
+  grossWeight           Decimal?       @db.Decimal(12, 3)
+  remarks               String?
+  preparedById          String?
+  lines                 DispatchLine[]
+  salesInvoices         SalesInvoice[]
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+}
+
+model DispatchLine {
+  id                  String                  @id @default(uuid())
+  dispatchId          String
+  dispatch            Dispatch                @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  customerOrderLineId String
+  customerOrderLine   CustomerOrderLine       @relation(fields: [customerOrderLineId], references: [id])
+  productId           String
+  product             Product                 @relation(fields: [productId], references: [id])
+  quantity            Decimal                 @db.Decimal(12, 3)
+  unit                String
+  unitPrice           Decimal                 @db.Decimal(14, 2)
+  taxRate             Decimal                 @default(18.0) @db.Decimal(5, 2)
+  totalPrice          Decimal                 @db.Decimal(14, 2)
+  allocations         DispatchLotAllocation[]
+}
+
+model DispatchLotAllocation {
+  id                String           @id @default(uuid())
+  dispatchLineId    String
+  dispatchLine      DispatchLine     @relation(fields: [dispatchLineId], references: [id], onDelete: Cascade)
+  finishedGoodsLotId String
+  finishedGoodsLot  FinishedGoodsLot @relation(fields: [finishedGoodsLotId], references: [id])
+  allocatedQuantity Decimal          @db.Decimal(12, 3)
+  unit              String
+}
+
+// ----------------------------------------------------
+// 9. ACCOUNTS & COMMERCIAL RECONCILIATION
+// ----------------------------------------------------
+
+enum ThreeWayMatchStatus {
+  PENDING
+  MATCHED
+  DISCREPANCY
+  APPROVED_OVERRIDE
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+model SupplierInvoice {
+  id                  String              @id @default(uuid())
+  invoiceNumber       String              @unique
+  supplierId          String
+  supplier            Supplier            @relation(fields: [supplierId], references: [id])
+  invoiceDate         DateTime
+  dueDate             DateTime?
+  purchaseOrderId     String?
+  purchaseOrder       PurchaseOrder?      @relation(fields: [purchaseOrderId], references: [id])
+  goodsReceiptId      String?
+  goodsReceipt        GoodsReceipt?       @relation(fields: [goodsReceiptId], references: [id])
+  subtotal            Decimal             @db.Decimal(14, 2)
+  taxAmount           Decimal             @db.Decimal(14, 2)
+  totalAmount         Decimal             @db.Decimal(14, 2)
+  paymentStatus       PaymentStatus       @default(PENDING)
+  threeWayMatchStatus ThreeWayMatchStatus @default(PENDING)
+  discrepancyDetails  Json?
+  notes               String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+}
+
+model SalesInvoice {
+  id              String        @id @default(uuid())
+  invoiceNumber   String        @unique
+  customerId      String
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  customerOrderId String
+  customerOrder   CustomerOrder @relation(fields: [customerOrderId], references: [id])
+  dispatchId      String?
+  dispatch        Dispatch?     @relation(fields: [dispatchId], references: [id])
+  invoiceDate     DateTime      @default(now())
+  dueDate         DateTime?
+  subtotal        Decimal       @db.Decimal(14, 2)
+  taxAmount       Decimal       @db.Decimal(14, 2)
+  totalAmount     Decimal       @db.Decimal(14, 2)
+  paymentStatus   PaymentStatus @default(PENDING)
+  eWayBillNumber  String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model AccountsReconciliation {
+  id                   String   @id @default(uuid())
+  reconciliationNumber String   @unique
+  type                 String   // PURCHASE_3WAY_MATCH, SALES_RECONCILIATION
+  documentRef          String
+  discrepancyAmount    Decimal  @default(0) @db.Decimal(14, 2)
+  status               String   @default("PENDING_REVIEW") // PENDING_REVIEW, RESOLVED, REJECTED
+  resolvedById         String?
+  resolutionNotes      String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+// ----------------------------------------------------
+// 10. CROSS-CUTTING RECORDS (AUDIT, NOTIFICATIONS, ATTACHMENTS)
+// ----------------------------------------------------
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  actorId        String?
+  actor          User?    @relation(fields: [actorId], references: [id])
+  actorEmail     String?
+  actorName      String?
+  action         String   // CREATE, UPDATE, APPROVE, REJECT, TRANSITION, STOCK_MOVE, CONFIG_CHANGE
+  entityType     String
+  entityId       String
+  documentNumber String?
+  details        Json?    // Before & after snapshot or changes
+  ipAddress      String?
+  timestamp      DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([timestamp])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("INFO") // INFO, WARNING, ACTION_REQUIRED, SUCCESS
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+}
+
+model Attachment {
+  id           String   @id @default(uuid())
+  entityType   String
+  entityId     String
+  fileName     String
+  fileUrl      String
+  fileType     String?
+  fileSize     Int?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
