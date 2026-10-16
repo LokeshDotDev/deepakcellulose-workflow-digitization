@@ -1,7 +1,14 @@
 import { PrismaClient, DepartmentCode, UnitType, MaterialType, WarehouseType, PurchaseOrderStatus, GateEntryStatus, GoodsReceiptStatus, InventoryLotStatus, InventoryTransactionType, QCSpecificationTarget, QCInspectionStatus, DispositionType, ProductionOrderStatus, BatchStatus, CustomerOrderStatus, DispatchStatus, ThreeWayMatchStatus, PaymentStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient();
+const isTest = process.env.NODE_ENV === "test";
+const dbUrl = isTest && process.env.TEST_DATABASE_URL
+  ? process.env.TEST_DATABASE_URL
+  : process.env.DATABASE_URL;
+
+const prisma = new PrismaClient({
+  datasources: dbUrl ? { db: { url: dbUrl } } : undefined,
+});
 
 async function main() {
   console.log("🌱 Starting Deepak Cellulose ERP Database Seed...");

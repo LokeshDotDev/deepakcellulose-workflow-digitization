@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx prisma/seed.ts",
-    "test": "tsx --test tests/erp.test.ts tests/process-workflow.test.ts"
+    "test": "tsx scripts/run-tests.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

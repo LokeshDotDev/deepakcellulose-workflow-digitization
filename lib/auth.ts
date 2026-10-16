@@ -29,7 +29,12 @@ function verify(token: string): string | null {
   if (parts.length !== 2) return null;
   const [payload, signature] = parts;
   const expectedSig = crypto.createHmac("sha256", SECRET).update(payload).digest("base64url");
-  if (crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) {
+  const sigBuf = Buffer.from(signature);
+  const expBuf = Buffer.from(expectedSig);
+  if (sigBuf.length !== expBuf.length) {
+    return null;
+  }
+  if (crypto.timingSafeEqual(sigBuf, expBuf)) {
     return payload;
   }
   return null;
