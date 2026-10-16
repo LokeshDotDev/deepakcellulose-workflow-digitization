@@ -1093,6 +1093,11 @@ async function main() {
     ],
   });
 
+  // 17. CONFIGURABLE BATCH PROCESS WORKFLOWS
+  console.log("Seeding Configurable Manufacturing Process Templates...");
+  const { seedHpmcProcessTemplate } = await import("../server/services/process-workflow.service");
+  await seedHpmcProcessTemplate();
+
   console.log("✅ Seed completed successfully! Connected live ERP dataset generated.");
 }
 

@@ -8,13 +8,15 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx prisma/seed.ts",
-    "test": "tsx --test tests/erp.test.ts"
+    "test": "tsx --test tests/erp.test.ts tests/process-workflow.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
+    "@neon/config": "^1.9.2",
+    "@neon/env": "^1.6.3",
     "@prisma/client": "^6.19.3",
     "@tanstack/react-table": "^9.3.1",
     "bcryptjs": "^3.0.3",

@@ -72,6 +72,7 @@ export function AppSidebar({ user, mobileOpen, onCloseMobile }: AppSidebarProps)
       title: "SYSTEM GOVERNANCE",
       items: [
         { label: "Administration & Masters", href: "/admin", icon: Users },
+        { label: "Process Flow Templates", href: "/admin/process-templates", icon: Network },
         { label: "Dynamic Form Builder", href: "/admin/forms", icon: Sliders },
         { label: "Workflow Configurator", href: "/admin/workflows", icon: GitBranch },
         { label: "Reports & Exports", href: "/reports", icon: FileSpreadsheet },

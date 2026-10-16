@@ -67,6 +67,70 @@ Deepak Cellulose Pvt. Ltd. operates specialized chemical plants synthesizing cel
    - An automated variance tolerance of **$\pm 1.5\%$** is accepted to accommodate weighbridge decimal differences and fractional GST rounding.
    - Variances $> 1.5\%$ require explicit manual review and electronic sign-off by the Accounts Officer.
 
+### 2.7 HPMC-P Batch Manufacturing Process & SOP: 176QA06 Flowchart Assumptions
+
+1. **Source Document & Reference Standards**:
+   - The initial directed workflow template is transcribed from **`PROCESS FLOWCHART – HPMC-P APPENDIX-A`** citing reference **`Ref. SOP: 176QA06`** and Document No. **`07`**.
+   - **Critical Rule**: The photograph serves as an initial operational trace baseline, **not** as authority to execute live production. The template is provisioned in `DRAFT` status and must remain so until authorized company personnel confirm the sequence, raw material designations, setpoints, and approval rules.
+
+2. **Full Workflow Nodes (27 Nodes)**:
+   - **Incoming Materials & Preparation**:
+     1. `NODE-01`: Raw Material Supplies (Category: `MATERIAL_RECEIPT`, Responsible: `STORES`, `WAREHOUSE_OFFICER`)
+     2. `NODE-02`: Storage (Category: `STORAGE`, Responsible: `STORES`, `WAREHOUSE_OFFICER`)
+     3. `NODE-03`: Raw Material QC (Category: `QUALITY_INSPECTION`, Responsible: `QA`, `QC_ANALYST`) — **Mandatory Control Point**
+     4. `NODE-04`: Production Handover (Category: `MANUFACTURING_OPERATION`, Responsible: `PRODUCTION`, `PRODUCTION_SUPERVISOR`)
+     5. `NODE-05`: Preheating — RM01 (Category: `PREPARATION`, Responsible: `PRODUCTION`, `OPERATOR`)
+     6. `NODE-06`: RM02, RM03, RM04 Preparation (Category: `PREPARATION`, Responsible: `PRODUCTION`, `OPERATOR`)
+     7. `NODE-07`: Drying (Category: `PREPARATION`, Responsible: `PRODUCTION`, `OPERATOR`)
+     8. `NODE-08`: Cooking (Category: `MANUFACTURING_OPERATION`, Responsible: `PRODUCTION`, `OPERATOR`) — **Control Point: Time / Temperature**
+     9. `NODE-09`: Maturation (Category: `MANUFACTURING_OPERATION`, Responsible: `PRODUCTION`, `OPERATOR`)
+     10. `NODE-10`: Dissolution (Category: `MANUFACTURING_OPERATION`, Responsible: `PRODUCTION`, `OPERATOR`) — **Input: RM05 & RM07; Control Point: Time / Temperature**
+     11. `NODE-11`: Filtration (Category: `MANUFACTURING_OPERATION`, Responsible: `PRODUCTION`, `OPERATOR`)
+     12. `NODE-12`: Precipitation (Category: `MANUFACTURING_OPERATION`, Responsible: `PRODUCTION`, `OPERATOR`)
+     13. `NODE-13`: Acid Washing (Category: `MANUFACTURING_OPERATION`, Responsible: `PRODUCTION`, `OPERATOR`) — **By-product branch to Acetic Acid Dilute**
+     14. `NODE-14`: Refining Wash (Category: `MANUFACTURING_OPERATION`, Responsible: `PRODUCTION`, `OPERATOR`)
+     15. `NODE-15`: Pusher Centrifuge Wash (Category: `MANUFACTURING_OPERATION`, Responsible: `PRODUCTION`, `OPERATOR`) — **Input: RM06; Control Point: pH / Acidity; Effluent Branch**
+     16. `NODE-16`: FBD Drying (Category: `MANUFACTURING_OPERATION`, Responsible: `PRODUCTION`, `OPERATOR`)
+   - **Quality Checks & Downstream Processing**:
+     17. `NODE-17`: QC SF Testing (Category: `QUALITY_INSPECTION`, Responsible: `QA`, `QC_ANALYST`) — **Mandatory Control Point**
+     18. `NODE-18`: Sieving (Category: `MANUFACTURING_OPERATION`, Responsible: `PRODUCTION`, `OPERATOR`)
+     19. `NODE-19`: Milling (Category: `MANUFACTURING_OPERATION`, Responsible: `PRODUCTION`, `OPERATOR`)
+     20. `NODE-20`: Blending (Category: `MANUFACTURING_OPERATION`, Responsible: `PRODUCTION`, `OPERATOR`)
+     21. `NODE-21`: QC Viscosity (Category: `QUALITY_INSPECTION`, Responsible: `QA`, `QC_ANALYST`) — **Mandatory Control Point**
+     22. `NODE-22`: Metal Detection (Category: `QUALITY_INSPECTION`, Responsible: `QA`, `QC_ANALYST`) — **Mandatory Control Point**
+     23. `NODE-23`: Packing (Category: `PACKAGING`, Responsible: `PRODUCTION`, `OPERATOR`)
+     24. `NODE-24`: Finished Goods (Category: `FINISHED_GOODS`, Responsible: `STORES`, `WAREHOUSE_OFFICER`)
+     25. `NODE-25`: Sales / Finished Goods Handover (Category: `HANDOVER`, Responsible: `STORES`, `HEAD_OF_OPERATIONS`)
+   - **Branch / By-Product Nodes**:
+     26. `NODE-BYPROD-01`: Acetic Acid Dilute (Sales / Incineration / Refining) (Category: `WASTE_BYPRODUCT`) — **Marked Requires Verification**
+     27. `NODE-EFFLUENT-01`: Effluent Treatment (ETP) (Category: `WASTE_BYPRODUCT`)
+
+3. **Raw Material Master Mapping (RM01 to RM07)**:
+   - `RM01`: Glacial Acetic Acid (CAS: 64-19-7)
+   - `RM02`: Hydroxypropyl methylcellulose (HPMC) (CAS: 9004-65-3)
+   - `RM03`: Sodium Acetate Anhydrous (CAS: 127-09-3)
+   - `RM04`: Phthalic Anhydride (CAS: 85-44-9)
+   - `RM05`: Hydrogen Peroxide (CAS: 7722-84-1)
+   - `RM06`: Process Water (Purified) (CAS: 7732-18-5)
+   - `RM07`: Water (dil AA) (Aqueous dilute acetic acid solution)
+   - **Zero Recipe Guessing Rule**: The system strictly records material issuance against active warehouse lots. It does **not** assume stoichiometric ratios, dilution percentages (e.g. for RM07), or charging quantities.
+
+4. **Critical Quality Gates & Unconfigured Specification Protection**:
+   - The system tracks 7 critical control points:
+     - `CP-01`: Raw Material Quality Release (Stage: `NODE-03`)
+     - `CP-02`: Cooking Time & Temperature Profile (Stage: `NODE-08`)
+     - `CP-03`: Dissolution Time & Temperature Profile (Stage: `NODE-10`)
+     - `CP-04`: Pusher Centrifuge Wash pH & Residual Acidity (Stage: `NODE-15`)
+     - `CP-05`: Semi-Finished SF Monograph Testing (Stage: `NODE-17`)
+     - `CP-06`: In-Process Viscosity Verification (Stage: `NODE-21`)
+     - `CP-07`: Metal Detection Verification (Stage: `NODE-22`)
+   - **Safety Lock**: If plant QA has not populated and approved numerical setpoints/limits for any control point, the ERP displays `Specification Not Configured` and programmatically blocks stage sign-off.
+
+5. **Side Branch Details & Verification Status**:
+   - `EDGE-BYPROD-01` (`Acid Washing` -> `Acetic Acid Dilute`): Flagged as `requiresVerification = true`. The flowchart depicts a side stream terminating in "Sales / Incineration / Refining". Until plant engineering declares the commercial or environmental route, this edge is flagged for QA verification.
+   - `EDGE-EFFLUENT-01` (`Pusher Centrifuge Wash` -> `Effluent Treatment`): Routed as an environmental by-product stream.
+   - `EDGE-DISSOLUTION-INPUT` (`RM05 / RM07` -> `Dissolution`): Configured as material inputs rather than a sequential operation.
+
 ---
 
 ## 3. Operations Management Questionnaire & Confirmation Checklist

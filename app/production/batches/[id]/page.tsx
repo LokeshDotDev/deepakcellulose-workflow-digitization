@@ -2,7 +2,7 @@ import React from "react";
 import prisma from "@/lib/db";
 import { formatQuantity, formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { Cog, CheckCircle2, Clock, ArrowLeft, Layers, ShieldCheck, Printer } from "lucide-react";
+import { Cog, CheckCircle2, Clock, ArrowLeft, Layers, ShieldCheck, Printer, GitBranch } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BMRClientActions } from "./BMRClientActions";
@@ -68,12 +68,20 @@ export default async function BatchDetailPage({ params }: { params: Promise<{ id
           </p>
         </div>
 
-        <BMRClientActions
-          batch={JSON.parse(JSON.stringify(batch))}
-          availableLots={JSON.parse(JSON.stringify(availableLots))}
-          packagingTypes={JSON.parse(JSON.stringify(packagingTypes))}
-          fgWarehouses={JSON.parse(JSON.stringify(fgWarehouses))}
-        />
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/production/batches/${batch.id}/process`}
+            className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs"
+          >
+            <GitBranch className="w-4 h-4 text-indigo-600" /> Interactive Process Flowchart
+          </Link>
+          <BMRClientActions
+            batch={JSON.parse(JSON.stringify(batch))}
+            availableLots={JSON.parse(JSON.stringify(availableLots))}
+            packagingTypes={JSON.parse(JSON.stringify(packagingTypes))}
+            fgWarehouses={JSON.parse(JSON.stringify(fgWarehouses))}
+          />
+        </div>
       </div>
 
       {/* Batch Overview Cards */}

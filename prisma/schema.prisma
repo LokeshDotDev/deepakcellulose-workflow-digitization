@@ -1,7 +1,8 @@
 // Prisma Schema for Deepak Cellulose Manufacturing ERP
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
@@ -18,6 +19,7 @@ enum DepartmentCode {
   GATE
   WAREHOUSE
   QC
+  QA
   PRODUCTION
   FINISHED_GOODS
   DISPATCH
@@ -50,6 +52,7 @@ model User {
   userRoles    UserRole[]
   auditLogs    AuditLog[]
   notifications Notification[]
+  processTemplatesCreated ProcessTemplate[] @relation("ProcessTemplateCreator")
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
@@ -181,6 +184,7 @@ model Material {
   formulaLines   FormulaLine[]
   qcSpecs        QCSpecification[]
   batchConsumptions BatchMaterialConsumption[]
+  processNodeMaterials ProcessNodeMaterial[]
   createdAt      DateTime                 @default(now())
   updatedAt      DateTime                 @updatedAt
 }
@@ -748,6 +752,7 @@ model QCInspection {
   approvedAt      DateTime?
   results         QCInspectionResult[]
   dispositions    MaterialDisposition[]
+  stageExecutions BatchStageExecution[]
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 }
@@ -907,6 +912,7 @@ model Batch {
   qcInspections          QCInspection[]
   finishedReceipts       FinishedGoodsReceipt[]
   inventoryLots          InventoryLot[]
+  processExecution       BatchProcessExecution?
   createdAt              DateTime                   @default(now())
   updatedAt              DateTime                   @updatedAt
 }
@@ -1234,3 +1240,219 @@ model Attachment {
 
   @@index([entityType, entityId])
 }
+
+// ----------------------------------------------------
+// 12. CONFIGURABLE BATCH PROCESS WORKFLOW GRAPH
+// ----------------------------------------------------
+
+enum ProcessTemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ProcessNodeType {
+  MATERIAL_RECEIPT
+  STORAGE
+  PREPARATION
+  MANUFACTURING_OPERATION
+  PROCESS_CONTROL
+  QUALITY_INSPECTION
+  MATERIAL_TRANSFER
+  WASTE_BYPRODUCT
+  PACKAGING
+  FINISHED_GOODS
+  HANDOVER
+}
+
+enum StageExecutionStatus {
+  NOT_STARTED
+  READY
+  IN_PROGRESS
+  AWAITING_QC
+  AWAITING_APPROVAL
+  COMPLETED
+  ON_HOLD
+  REJECTED
+  BLOCKED
+  CANCELLED
+}
+
+model ProcessTemplate {
+  id                    String                   @id @default(uuid())
+  code                  String                   @unique
+  name                  String
+  documentTitle         String
+  sopReference          String
+  documentNumber        String?
+  category              String                   @default("Batch Manufacturing")
+  departmentCode        DepartmentCode           @default(QA)
+  requiresVerification  Boolean                  @default(true)
+  currentRevision       Int                      @default(1)
+  status                ProcessTemplateStatus    @default(DRAFT)
+  versions              ProcessTemplateVersion[]
+  executions            BatchProcessExecution[]
+  createdById           String
+  createdBy             User                     @relation("ProcessTemplateCreator", fields: [createdById], references: [id])
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+}
+
+model ProcessTemplateVersion {
+  id              String                   @id @default(uuid())
+  templateId      String
+  template        ProcessTemplate          @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  versionNumber   Int
+  status          ProcessTemplateStatus    @default(DRAFT)
+  changeReason    String?
+  effectiveDate   DateTime?
+  reviewDate      DateTime?
+  provenanceNotes String?
+  publishedById   String?
+  publishedAt     DateTime?
+  nodes           ProcessNodeDefinition[]
+  edges           ProcessEdgeDefinition[]
+  executions      BatchProcessExecution[]
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  @@unique([templateId, versionNumber])
+}
+
+model ProcessNodeDefinition {
+  id                     String                  @id @default(uuid())
+  versionId              String
+  version                ProcessTemplateVersion  @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  nodeKey                String
+  label                  String
+  nodeType               ProcessNodeType         @default(MANUFACTURING_OPERATION)
+  sequenceOrder          Int                     @default(1)
+  positionX              Float                   @default(100)
+  positionY              Float                   @default(100)
+  description            String?
+  responsibleDept        DepartmentCode          @default(PRODUCTION)
+  responsibleRole        String                  @default("OPERATOR")
+  mandatoryQCCheck       Boolean                 @default(false)
+  qcSpecificationCode    String?
+  isCriticalControlPoint Boolean                 @default(false)
+  requiresVerification   Boolean                 @default(false)
+  verificationNotes      String?
+  equipmentType          String?
+  config                 Json?
+  materials              ProcessNodeMaterial[]
+  controlPoints          ProcessControlPoint[]
+  outgoingEdges          ProcessEdgeDefinition[] @relation("EdgeSource")
+  incomingEdges          ProcessEdgeDefinition[] @relation("EdgeTarget")
+  stageExecutions        BatchStageExecution[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  @@unique([versionId, nodeKey])
+}
+
+model ProcessEdgeDefinition {
+  id                   String                 @id @default(uuid())
+  versionId            String
+  version              ProcessTemplateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  sourceNodeId         String
+  sourceNode           ProcessNodeDefinition  @relation("EdgeSource", fields: [sourceNodeId], references: [id], onDelete: Cascade)
+  targetNodeId         String
+  targetNode           ProcessNodeDefinition  @relation("EdgeTarget", fields: [targetNodeId], references: [id], onDelete: Cascade)
+  edgeType             String                 @default("DEFAULT")
+  label                String?
+  conditionExpression  String?
+  requiresVerification Boolean                @default(false)
+  verificationNotes    String?
+  createdAt            DateTime               @default(now())
+}
+
+model ProcessNodeMaterial {
+  id                   String                @id @default(uuid())
+  nodeId               String
+  node                 ProcessNodeDefinition @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  materialCode         String
+  materialName         String
+  materialId           String?
+  material             Material?             @relation(fields: [materialId], references: [id])
+  flowType             String                @default("INPUT")
+  unit                 String?
+  isControlled         Boolean               @default(true)
+  requiresVerification Boolean               @default(false)
+  notes                String?
+}
+
+model ProcessControlPoint {
+  id                   String                @id @default(uuid())
+  nodeId               String
+  node                 ProcessNodeDefinition @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  parameterName        String
+  controlType          String
+  unitOfMeasure        String?
+  specificationCode    String?
+  inspectorRole        String                @default("QC_ANALYST")
+  approvalRole         String?               @default("QA_MANAGER")
+  isMandatory          Boolean               @default(true)
+  acceptanceCriteria   String?
+  requiresVerification Boolean               @default(false)
+  notes                String?
+}
+
+model BatchProcessExecution {
+  id                   String                 @id @default(uuid())
+  batchId              String                 @unique
+  batch                Batch                  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  templateId           String
+  template             ProcessTemplate        @relation(fields: [templateId], references: [id])
+  templateVersionId    String
+  templateVersion      ProcessTemplateVersion @relation(fields: [templateVersionId], references: [id])
+  status               String                 @default("IN_PROGRESS")
+  startedAt            DateTime               @default(now())
+  completedAt          DateTime?
+  stageExecutions      BatchStageExecution[]
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+}
+
+model BatchStageExecution {
+  id                  String                  @id @default(uuid())
+  executionId         String
+  execution           BatchProcessExecution   @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  nodeId              String
+  node                ProcessNodeDefinition   @relation(fields: [nodeId], references: [id])
+  status              StageExecutionStatus    @default(NOT_STARTED)
+  assignedOperatorId  String?
+  assignedInspectorId String?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  observations        Json?
+  controlResults      Json?
+  qcInspectionId      String?
+  qcInspection        QCInspection?           @relation(fields: [qcInspectionId], references: [id])
+  approvedById        String?
+  approvedAt          DateTime?
+  rejectionReason     String?
+  notes               String?
+  deviations          BatchProcessDeviation[]
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  @@unique([executionId, nodeId])
+}
+
+model BatchProcessDeviation {
+  id               String              @id @default(uuid())
+  stageExecutionId String
+  stageExecution   BatchStageExecution @relation(fields: [stageExecutionId], references: [id], onDelete: Cascade)
+  deviationCode    String              @unique
+  title            String
+  description      String
+  severity         String              @default("MINOR")
+  immediateAction  String?
+  rootCause        String?
+  reportedById     String
+  approvedById     String?
+  status           String              @default("OPEN")
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+}
+
