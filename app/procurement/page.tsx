@@ -3,7 +3,7 @@ import prisma from "@/lib/db";
 import { formatCurrency, formatQuantity, formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingCart, Plus, CheckCircle, Clock, Truck, FileText } from "lucide-react";
-import { ProcurementActionButtons } from "./ProcurementActions";
+import { ProcurementActionButtons, PORowActions } from "./ProcurementActions";
 
 export const dynamic = "force-dynamic";
 
@@ -87,12 +87,13 @@ export default async function ProcurementPage() {
                 <th className="py-3 px-4">Fulfillment Status</th>
                 <th className="py-3 px-4">Total Amount</th>
                 <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {purchaseOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400">
+                  <td colSpan={8} className="py-8 text-center text-slate-400">
                     No purchase orders recorded yet.
                   </td>
                 </tr>
@@ -143,6 +144,14 @@ export default async function ProcurementPage() {
                       </td>
                       <td className="py-3 px-4">
                         <Badge status={po.status} />
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <PORowActions
+                          po={JSON.parse(JSON.stringify(po))}
+                          suppliers={JSON.parse(JSON.stringify(suppliers))}
+                          materials={JSON.parse(JSON.stringify(materials))}
+                          uoms={JSON.parse(JSON.stringify(uoms))}
+                        />
                       </td>
                     </tr>
                   );

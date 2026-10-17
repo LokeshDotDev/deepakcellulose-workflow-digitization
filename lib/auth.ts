@@ -13,6 +13,9 @@ export interface SessionUser {
   departmentId?: string | null;
   departmentCode?: string | null;
   departmentName?: string | null;
+  approvalStatus?: string;
+  customPermissions?: string[];
+  requestedDepartments?: string | null;
   roles: string[];
   permissions: string[];
 }
@@ -99,7 +102,7 @@ export async function getSession(): Promise<SessionUser | null> {
     },
   });
 
-  if (!user || !user.isActive) return null;
+  if (!user || !user.isActive || user.approvalStatus !== "APPROVED") return null;
 
   const roles = user.userRoles.map((ur) => ur.role.code);
   const permissionsSet = new Set<string>();
@@ -115,6 +118,13 @@ export async function getSession(): Promise<SessionUser | null> {
     }
   }
 
+  // Add custom permissions granted directly to user
+  if (user.customPermissions && Array.isArray(user.customPermissions)) {
+    for (const cp of user.customPermissions) {
+      permissionsSet.add(cp);
+    }
+  }
+
   return {
     id: user.id,
     email: user.email,
@@ -123,6 +133,9 @@ export async function getSession(): Promise<SessionUser | null> {
     departmentId: user.departmentId,
     departmentCode: user.department?.code || null,
     departmentName: user.department?.name || null,
+    approvalStatus: user.approvalStatus,
+    customPermissions: user.customPermissions,
+    requestedDepartments: user.requestedDepartments,
     roles,
     permissions: Array.from(permissionsSet),
   };

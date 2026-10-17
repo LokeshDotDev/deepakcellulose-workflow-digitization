@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         weighbridgeTareWeight: weighbridgeTareWeight ? Number(weighbridgeTareWeight) : null,
         weighbridgeNetWeight: netWeight,
         securityOfficerId: user.id,
-        status: GateEntryStatus.SENT_TO_WAREHOUSE,
+        status: GateEntryStatus.RECORDED, // Vehicle registered inside plant / yard
         remarks,
       },
       include: { supplier: true, purchaseOrder: true },

@@ -62,6 +62,13 @@ export default async function AdminPage() {
 
         <div className="flex items-center gap-2">
           <Link
+            href="/admin/users"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition shadow-xs"
+          >
+            <Users className="w-3.5 h-3.5" />
+            Manage Users & Approvals
+          </Link>
+          <Link
             href="/admin/forms"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition"
           >

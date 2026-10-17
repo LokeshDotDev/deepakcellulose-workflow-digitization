@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
       title: grn.grnNumber,
       subtitle: `Supplier Challan: ${grn.supplierChallanNumber}`,
       status: grn.status,
-      href: `/warehouse/receipts`,
+      href: `/warehouse`,
     });
   }
 
@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
       title: lot.lotNumber,
       subtitle: `${lot.material?.name || lot.product?.name || "Lot"} - ${lot.currentQuantity} ${lot.unit}`,
       status: lot.status,
-      href: `/warehouse/inventory`,
+      href: `/warehouse`,
     });
   }
 

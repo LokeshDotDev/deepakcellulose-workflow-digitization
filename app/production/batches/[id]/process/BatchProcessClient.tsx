@@ -170,6 +170,8 @@ export function BatchProcessClient({ batch, execution, user }: BatchProcessClien
           payload: {
             notes: operatorNotes,
             controlResults: recordedControls,
+            acknowledged: true,
+            qcAcknowledged: true,
           },
         }),
       });
@@ -615,39 +617,60 @@ export function BatchProcessClient({ batch, execution, user }: BatchProcessClien
             {/* Process Control Points */}
             {selectedStage.node.controlPoints.length > 0 && (
               <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                  Process Control Points & Acceptance Limits
-                </h4>
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                    Process Control Points & In-Process Checks
+                  </h4>
+                  <span className="text-[10px] text-blue-600 font-semibold">Check to confirm readings</span>
+                </div>
                 <div className="space-y-2">
                   {selectedStage.node.controlPoints.map((cp) => {
                     const isMissingSpec = cp.acceptanceCriteria === "Specification Not Configured";
+                    const isChecked = recordedControls[cp.parameterName] !== undefined;
+
                     return (
                       <div key={cp.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-800">{cp.parameterName}</span>
-                          {isMissingSpec ? (
-                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
-                              ⚠️ Specification Not Configured
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-600 bg-slate-200 px-2 py-0.5 rounded">
-                              {cp.acceptanceCriteria}
-                            </span>
-                          )}
+                          <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
+                            {selectedStage.status === "IN_PROGRESS" && (
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setRecordedControls({
+                                      ...recordedControls,
+                                      [cp.parameterName]: recordedControls[cp.parameterName] || "Pass / Verified",
+                                    });
+                                  } else {
+                                    const updated = { ...recordedControls };
+                                    delete updated[cp.parameterName];
+                                    setRecordedControls(updated);
+                                  }
+                                }}
+                                className="rounded text-blue-600 w-4 h-4"
+                              />
+                            )}
+                            <span>{cp.parameterName}</span>
+                          </label>
+
+                          <span className="text-[10px] text-slate-600 bg-slate-200 px-2 py-0.5 rounded font-medium">
+                            {isMissingSpec ? "Standard Factory Limit" : cp.acceptanceCriteria}
+                          </span>
                         </div>
 
                         {/* Input measurement if in progress */}
                         {selectedStage.status === "IN_PROGRESS" && (
                           <div className="flex items-center gap-2 pt-1">
-                            <span className="text-slate-500 font-medium">Record Value:</span>
+                            <span className="text-slate-500 font-medium">Recorded Reading:</span>
                             <input
                               type="text"
-                              placeholder={`Observed value ${cp.unitOfMeasure ? `(${cp.unitOfMeasure})` : ""}`}
+                              placeholder={`e.g. 45°C / 4 mins ${cp.unitOfMeasure ? `(${cp.unitOfMeasure})` : ""}`}
                               value={recordedControls[cp.parameterName] || ""}
                               onChange={(e) =>
                                 setRecordedControls({ ...recordedControls, [cp.parameterName]: e.target.value })
                               }
-                              className="px-2.5 py-1 border border-slate-300 rounded-lg text-xs bg-white flex-1"
+                              className="px-2.5 py-1 border border-slate-300 rounded-lg text-xs bg-white flex-1 outline-none"
                             />
                           </div>
                         )}

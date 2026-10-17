@@ -50,26 +50,26 @@ export function DemoBanner({ currentEmail, currentRole, currentDept }: DemoBanne
   const activeProfile = DEMO_PROFILES.find((p) => p.email === currentEmail) || DEMO_PROFILES[0];
 
   return (
-    <div className="bg-slate-900 border-b border-slate-800 text-white px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-3 sticky top-0 z-50 shadow-md">
+    <div className="bg-slate-100 border-b border-slate-200 text-slate-700 px-4 py-1.5 text-xs flex flex-wrap items-center justify-between gap-3 sticky top-0 z-50">
       <div className="flex items-center gap-2">
         <span className="flex h-2 w-2 relative">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
         </span>
-        <span className="font-semibold tracking-wide text-slate-200">DEMO MODE ACTIVE</span>
-        <span className="hidden md:inline text-slate-400">• Deepak Cellulose ERP (Fictional Sample Data Enabled)</span>
+        <span className="font-bold text-slate-800 tracking-wide text-[11px]">ACTIVE ROLE TESTING MODE</span>
+        <span className="hidden md:inline text-slate-500 text-[11px]">• Switch personas below to test role-scoped UI & permissions</span>
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="text-slate-400 hidden sm:inline">Active Persona:</span>
+        <span className="text-slate-500 hidden sm:inline text-[11px]">Active Persona:</span>
         <div className="relative">
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg px-2.5 py-1 font-medium transition cursor-pointer"
+            className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 font-medium transition cursor-pointer text-slate-800 shadow-2xs text-xs"
           >
             <span className={`w-2 h-2 rounded-full ${activeProfile.color}`} />
-            <span className="text-slate-200 font-medium">{activeProfile.name}</span>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            <span className="font-semibold">{activeProfile.name}</span>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
           </button>
 
           {isOpen && (

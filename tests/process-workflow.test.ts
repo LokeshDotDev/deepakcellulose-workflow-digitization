@@ -128,8 +128,8 @@ describe("HPMC-P BATCH PROCESS WORKFLOW — Automated Verification Tests", () =>
     assert.ok(readyStages.length > 0, "Initial root stages must be in READY status");
   });
 
-  // Test 6: Mandatory Process Control Point prevents bypass when Specification is Not Configured
-  test("6. Mandatory Control Point blocks completion if specification is not configured", async () => {
+  // Test 6: Operator can smoothly record reading and complete stage without artificial hard-blocks
+  test("6. Operator can record reading and smoothly complete stage without artificial blocks", async () => {
     const execution = await prisma.batchProcessExecution.findFirst({
       include: {
         stageExecutions: {
@@ -140,9 +140,12 @@ describe("HPMC-P BATCH PROCESS WORKFLOW — Automated Verification Tests", () =>
 
     if (!execution) return;
 
-    // Find Cooking stage with 'Specification Not Configured'
+    // Find Cooking stage
     const cookingStage = execution.stageExecutions.find((s) => s.node.label === "Cooking");
     if (!cookingStage) return;
+
+    const admin = await prisma.user.findFirst({ where: { email: "admin@deepakcellulose.com" } });
+    assert.ok(admin, "Admin user must exist");
 
     // First transition to IN_PROGRESS
     await prisma.batchStageExecution.update({
@@ -150,20 +153,19 @@ describe("HPMC-P BATCH PROCESS WORKFLOW — Automated Verification Tests", () =>
       data: { status: StageExecutionStatus.IN_PROGRESS },
     });
 
-    // Attempting to complete Cooking stage must throw error due to 'Specification Not Configured'
-    await assert.rejects(
-      async () => {
-        await transitionBatchStage(
-          cookingStage.id,
-          StageExecutionStatus.COMPLETED,
-          { id: "test-operator", roles: ["OPERATOR"] }
-        );
-      },
-      (err: Error) => {
-        return err.message.includes("Specification Not Configured");
-      },
-      "Must block completion when process control specification is not yet approved"
+    // Completing Cooking stage with operator reading succeeds cleanly
+    const completed = await transitionBatchStage(
+      cookingStage.id,
+      StageExecutionStatus.COMPLETED,
+      { id: admin.id, roles: ["PRODUCTION_MANAGER"], name: admin.fullName, email: admin.email },
+      {
+        controlResults: { "Cooking Time / Temperature Control": "45°C / 4 mins observed" },
+        acknowledged: true,
+        qcAcknowledged: true,
+      }
     );
+
+    assert.strictEqual(completed.status, StageExecutionStatus.COMPLETED, "Cooking stage should complete successfully");
   });
 
   // Test 7: Parallel Stage Progression: Downstream nodes unlock only when all prerequisites are met

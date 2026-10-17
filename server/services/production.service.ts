@@ -136,7 +136,7 @@ export async function startBatchManufacturing(input: StartBatchInput) {
     });
 
     return batch;
-  });
+  }, { maxWait: 15000, timeout: 30000 });
 }
 
 export interface ConsumeRawMaterialInput {
@@ -241,5 +241,5 @@ export async function consumeBatchMaterial(input: ConsumeRawMaterialInput) {
     });
 
     return consumption;
-  });
+  }, { maxWait: 15000, timeout: 30000 });
 }

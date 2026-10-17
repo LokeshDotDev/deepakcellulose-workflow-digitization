@@ -21,7 +21,7 @@ export function Badge({ className, status, variant, children, ...props }: BadgeP
         {...props}
       >
         <span className="w-1.5 h-1.5 rounded-full mr-1.5 bg-current opacity-70" />
-        {children || status.replace(/_/g, " ")}
+        {children || (status === "RECORDED" ? "IN PLANT" : status.replace(/_/g, " "))}
       </span>
     );
   }

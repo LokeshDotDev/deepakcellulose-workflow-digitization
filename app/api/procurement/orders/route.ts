@@ -50,20 +50,29 @@ export async function POST(req: NextRequest) {
 
       const totalAmount = subtotal + taxAmount;
 
+      const initialStatus =
+        body.status === "DRAFT"
+          ? PurchaseOrderStatus.DRAFT
+          : body.status === "APPROVED"
+          ? PurchaseOrderStatus.APPROVED
+          : PurchaseOrderStatus.SUBMITTED;
+
+      const isApproved = initialStatus === PurchaseOrderStatus.APPROVED;
+
       const po = await tx.purchaseOrder.create({
         data: {
           poNumber,
           supplierId,
           expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
-          status: PurchaseOrderStatus.APPROVED, // auto-approved in demo/direct create
+          status: initialStatus,
           subtotal,
           taxAmount,
           totalAmount,
           currency: "INR",
           paymentTerms: paymentTerms || "Net 30 Days",
           notes,
-          approvedById: user.id,
-          approvedAt: new Date(),
+          approvedById: isApproved ? user.id : null,
+          approvedAt: isApproved ? new Date() : null,
           lines: {
             create: createdLines,
           },

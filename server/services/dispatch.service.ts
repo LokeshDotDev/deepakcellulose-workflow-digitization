@@ -139,7 +139,7 @@ export async function createDispatchChallan(input: CreateDispatchChallanInput) {
     });
 
     return dispatch;
-  });
+  }, { maxWait: 15000, timeout: 30000 });
 }
 
 export async function confirmDispatchAndExit(params: {
@@ -148,7 +148,8 @@ export async function confirmDispatchAndExit(params: {
   actorEmail?: string;
   actorName?: string;
 }) {
-  return await prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(
+    async (tx) => {
     const dispatch = await tx.dispatch.findUnique({
       where: { id: params.dispatchId },
       include: {
@@ -291,5 +292,5 @@ export async function confirmDispatchAndExit(params: {
     });
 
     return { dispatch: updatedDispatch, invoiceNumber: invNumber };
-  });
+  }, { maxWait: 15000, timeout: 30000 });
 }

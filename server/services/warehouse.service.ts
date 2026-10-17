@@ -172,7 +172,7 @@ export async function createGoodsReceipt(input: CreateGoodsReceiptInput) {
     });
 
     return grn;
-  });
+  }, { maxWait: 15000, timeout: 30000 });
 }
 
 export async function transferStock(params: {
@@ -259,5 +259,5 @@ export async function transferStock(params: {
     });
 
     return { success: true, txnNumber };
-  });
+  }, { maxWait: 15000, timeout: 30000 });
 }
