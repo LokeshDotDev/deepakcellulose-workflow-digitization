@@ -1,15 +1,26 @@
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
+import dotenv from "dotenv";
 
-const testDbUrl = process.env.TEST_DATABASE_URL || "postgresql://neondb_owner:npg_ckvx6Jq1zQrf@ep-broad-shadow-aocttwm4-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb_test?sslmode=require&channel_binding=require&connect_timeout=30";
-const testDirectUrl = process.env.TEST_DIRECT_URL || "postgresql://neondb_owner:npg_ckvx6Jq1zQrf@ep-broad-shadow-aocttwm4.c-2.ap-southeast-1.aws.neon.tech/neondb_test?sslmode=require&connect_timeout=30";
+dotenv.config();
 
-console.log("Pushing schema to neondb_test...");
-execSync("npx prisma db push --skip-generate", {
+const testDbUrl = process.env.TEST_DATABASE_URL;
+const testDirectUrl = process.env.TEST_DIRECT_URL;
+
+if (!testDbUrl) {
+  console.error("TEST_DATABASE_URL not set");
+  process.exit(1);
+}
+
+console.log("Pushing schema to test database:", testDbUrl.split("@")[1]);
+
+const res = spawnSync("npx.cmd", ["prisma", "db", "push", "--skip-generate"], {
   stdio: "inherit",
+  shell: true,
   env: {
     ...process.env,
     DATABASE_URL: testDbUrl,
-    DIRECT_URL: testDirectUrl,
+    DIRECT_URL: testDirectUrl || testDbUrl,
   },
 });
-console.log("✅ neondb_test schema synchronized successfully.");
+
+process.exit(res.status || 0);

@@ -29,6 +29,8 @@ async function main() {
     "tests/notifications-dashboards.test.ts",
     "tests/failures-concurrency.test.ts",
     "tests/e2e-business-lifecycle.test.ts",
+    "tests/hr-gate-registry.test.ts",
+    "tests/warehouse-cleaning-registers.test.ts",
   ];
 
   console.log(`🚀 Executing ${testFiles.length} test suites with Node.js Test Runner...\n`);

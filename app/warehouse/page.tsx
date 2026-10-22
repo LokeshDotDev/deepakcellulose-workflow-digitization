@@ -1,14 +1,33 @@
 import React from "react";
 import prisma from "@/lib/db";
+import { getSession } from "@/lib/auth";
 import { formatQuantity, formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Warehouse as WarehouseIcon, Boxes, ArrowRightLeft, ShieldAlert } from "lucide-react";
 import { WarehouseActions } from "./WarehouseActions";
+import { WarehouseSopRegisters } from "@/components/warehouse/WarehouseSopRegisters";
+import {
+  getIncomingChecklists,
+  getRmInwardRegisterList,
+  getDetailedGrnList,
+} from "@/server/services/warehouse-sop.service";
 
 export const dynamic = "force-dynamic";
 
 export default async function WarehousePage() {
-  const [goodsReceipts, inventoryLots, ledgerEntries, gateEntries, warehouses, materials] = await Promise.all([
+  const [
+    user,
+    goodsReceipts,
+    inventoryLots,
+    ledgerEntries,
+    gateEntries,
+    warehouses,
+    materials,
+    checklists,
+    rmInward,
+    grns,
+  ] = await Promise.all([
+    getSession(),
     prisma.goodsReceipt.findMany({
       orderBy: { receiptDate: "desc" },
       include: {
@@ -41,13 +60,16 @@ export default async function WarehousePage() {
       where: { isActive: true },
       orderBy: { name: "asc" },
     }),
+    getIncomingChecklists(),
+    getRmInwardRegisterList(),
+    getDetailedGrnList(),
   ]);
 
-  const availableStockLots = inventoryLots.filter((l) => l.status === "AVAILABLE" || l.status === "QC_APPROVED");
-  const quarantinedStockLots = inventoryLots.filter((l) => l.status === "RECEIVED_PENDING_QC" || l.status === "QUARANTINED");
+  const availableStockLots = inventoryLots.filter((l: any) => l.status === "AVAILABLE" || l.status === "QC_APPROVED");
+  const quarantinedStockLots = inventoryLots.filter((l: any) => l.status === "RECEIVED_PENDING_QC" || l.status === "QUARANTINED");
 
-  const totalAvailableKG = availableStockLots.reduce((acc, l) => acc + Number(l.currentQuantity), 0);
-  const totalQuarantineKG = quarantinedStockLots.reduce((acc, l) => acc + Number(l.currentQuantity), 0);
+  const totalAvailableKG = availableStockLots.reduce((acc: number, l: any) => acc + Number(l.currentQuantity), 0);
+  const totalQuarantineKG = quarantinedStockLots.reduce((acc: number, l: any) => acc + Number(l.currentQuantity), 0);
 
   return (
     <div className="space-y-6">
@@ -94,6 +116,22 @@ export default async function WarehousePage() {
         </div>
       </div>
 
+      {/* Standard Warehouse SOP Registers (Checklist F07, Inward F13, Detailed GRN F12) */}
+      <WarehouseSopRegisters
+        initialChecklists={JSON.parse(JSON.stringify(checklists?.records || []))}
+        initialRmInward={JSON.parse(JSON.stringify(rmInward?.records || []))}
+        initialGrns={JSON.parse(JSON.stringify(grns?.records || []))}
+        currentUser={
+          user
+            ? {
+                fullName: user.fullName,
+                role: user.roles[0] || "User",
+                department: user.departmentName || undefined,
+              }
+            : undefined
+        }
+      />
+
       {/* Live Inventory Lots Register */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -125,7 +163,7 @@ export default async function WarehousePage() {
                   </td>
                 </tr>
               ) : (
-                inventoryLots.map((lot) => {
+                inventoryLots.map((lot: any) => {
                   const available = Number(lot.currentQuantity) - Number(lot.reservedQuantity);
                   return (
                     <tr key={lot.id} className="hover:bg-slate-50 transition">
@@ -190,7 +228,7 @@ export default async function WarehousePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {ledgerEntries.map((entry) => (
+              {ledgerEntries.map((entry: any) => (
                 <tr key={entry.id} className="hover:bg-slate-50 transition text-[11px]">
                   <td className="py-2.5 px-4 font-mono font-medium text-slate-800">
                     {entry.transactionNumber}

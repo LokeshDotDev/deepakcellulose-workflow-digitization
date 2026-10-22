@@ -25,6 +25,7 @@ enum DepartmentCode {
   DISPATCH
   ACCOUNTS
   MANAGEMENT
+  HR
 }
 
 model Department {
@@ -56,6 +57,15 @@ model User {
   auditLogs    AuditLog[]
   notifications Notification[]
   processTemplatesCreated ProcessTemplate[] @relation("ProcessTemplateCreator")
+  attendanceRegisters     AttendanceRegister[]     @relation("AttendanceRecordedBy")
+  visitorRegisters        VisitorRegister[]        @relation("VisitorRecordedBy")
+  staffMovementRegisters  StaffMovementRegister[]  @relation("StaffMovementRecordedBy")
+  materialInwardRegisters MaterialInwardRegister[] @relation("MaterialInwardRecordedBy")
+  materialOutwardRegisters MaterialOutwardRegister[] @relation("MaterialOutwardRecordedBy")
+  incomingChecklists      IncomingRmChecklist[]         @relation("ChecklistRecordedBy")
+  rawMaterialInwardLogs   RawMaterialInwardRegister[]   @relation("RmInwardRecordedBy")
+  detailedGrns            DetailedGrn[]                 @relation("DetailedGrnRecordedBy")
+  dailyCleaningRecords    DailyCleaningBuildingRecord[] @relation("DailyCleaningRecordedBy")
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
@@ -1458,4 +1468,305 @@ model BatchProcessDeviation {
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
 }
+
+// ----------------------------------------------------
+// 12. HR & SECURITY GATE REGISTRIES
+// ----------------------------------------------------
+
+enum WorkerCategory {
+  PERMANENT
+  CONTRACT_JALARAM
+  CONTRACT_YOGITA
+  CONTRACT_OTHER
+}
+
+model AttendanceRegister {
+  id             String         @id @default(uuid())
+  srNo           Int?
+  date           DateTime       @default(now())
+  empCode        String
+  name           String
+  category       WorkerCategory @default(PERMANENT)
+  contractorName String?        // "Jalaram", "Yogita", or custom contractor
+  inTime         String         // e.g. "08:30 AM" or "08:30"
+  outTime        String?        // e.g. "05:30 PM" or "17:30"
+  otHours        Decimal        @default(0) @db.Decimal(5, 2)
+  remarks        String?
+  recordedById   String?
+  recordedBy     User?          @relation("AttendanceRecordedBy", fields: [recordedById], references: [id])
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([date])
+  @@index([empCode])
+}
+
+model VisitorRegister {
+  id            String   @id @default(uuid())
+  srNo          Int?
+  date          DateTime @default(now())
+  name          String
+  relatedPerson String   // Related Person/ To Meet
+  inTime        String
+  outTime       String?
+  mobileNo      String
+  company       String?  // Organization / Visiting From
+  purpose       String?  // Purpose of visit
+  vehicleNo     String?
+  badgeNo       String?
+  signature     String?  // Digital sign-off / ID verified marker
+  status        String   @default("IN_PREMISES") // IN_PREMISES, DEPARTED
+  remarks       String?
+  recordedById  String?
+  recordedBy    User?    @relation("VisitorRecordedBy", fields: [recordedById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([date])
+  @@index([status])
+}
+
+model StaffMovementRegister {
+  id           String   @id @default(uuid())
+  srNo         Int?
+  staffName    String
+  empCode      String?
+  department   String?
+  date         DateTime @default(now())
+  inTime       String?  // In time / Return time
+  outTime      String?  // Out time / Exit time
+  remarkReason String   // Remark/ Reason
+  approvedBy   String?  // Approved by (HOD / Security / HR)
+  status       String   @default("OUT") // OUT, RETURNED
+  recordedById String?
+  recordedBy   User?    @relation("StaffMovementRecordedBy", fields: [recordedById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([date])
+  @@index([status])
+}
+
+model MaterialInwardRegister {
+  id               String    @id @default(uuid())
+  srNo             Int?
+  date             DateTime  @default(now())
+  partyName        String    // Supplier / Party Name
+  invoiceChallanNo String    // Invoice No./Challan No
+  invoiceDate      DateTime?
+  materialName     String    // Material Name and Details
+  inTime           String
+  outTime          String?
+  amount           Decimal?  @db.Decimal(14, 2)
+  vehicleNo        String
+  quantity         String?
+  status           String    @default("IN_PLANT") // IN_PLANT, UNLOADED, COMPLETED
+  remarks          String?
+  recordedById     String?
+  recordedBy       User?     @relation("MaterialInwardRecordedBy", fields: [recordedById], references: [id])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([date])
+  @@index([partyName])
+}
+
+model MaterialOutwardRegister {
+  id           String    @id @default(uuid())
+  srNo         Int?
+  date         DateTime  @default(now())
+  partyName    String    // Customer / Consignee / Party Name
+  invoiceNo    String    // Invoice No
+  invoiceDate  DateTime?
+  materialName String    // Material Name and Details
+  inTime       String
+  outTime      String?
+  amount       Decimal?  @db.Decimal(14, 2)
+  vehicleNo    String
+  transporter  String?
+  quantity     String?
+  status       String    @default("LOADING") // LOADING, DISPATCHED, EXITED
+  remarks      String?
+  recordedById String?
+  recordedBy   User?     @relation("MaterialOutwardRecordedBy", fields: [recordedById], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([date])
+  @@index([partyName])
+}
+
+// ----------------------------------------------------
+// 13. WAREHOUSE & SECURITY GATE REGISTRIES (SOP FORMATS)
+// ----------------------------------------------------
+
+model IncomingRmChecklist {
+  id                    String    @id @default(uuid())
+  formatNo              String    @default("ADM/SOP/02/F07")
+  checklistNumber       String    @unique
+  date                  DateTime  @default(now())
+  poNumber              String?   // "Verbal" or PO reference
+  materialName          String    // Name with standard (IP/BP/USP/In-House)
+  standard              String?   // "IP", "BP", "USP", "In-House"
+  ownership             String?   // On Account
+  // Labeling details
+  batchNumber           String?   // e.g. "HP-55"
+  quantityReceived      String?   // e.g. "274 Nos" or "8000 kg"
+  mfgDate               DateTime?
+  expDate               DateTime?
+  totalContainers       String?   // e.g. "274 Nos"
+  supplierName          String
+  manufacturerName      String?
+  storageConditions     String?
+  // Packing details
+  packingCondition      String    @default("OK") // "OK", "NOT_OK", "DAMAGED", "BROKEN"
+  outerPackaging        String    @default("SEALED") // "SEALED", "UNSEALED"
+  drumType              String?   // "Fiber Board Drum", "HDPE Drum", "Plastic", "Metal Drum", "Corrugated Drum"
+  bagType               String?   // "Polyethylene Bag", "Gunny Bag", "Paper Bag"
+  tankerSealsIntact     String?   // "YES", "NO", "NA"
+  // Transporter details
+  vehicleNumber         String
+  timeEntered           String?   // "10:30"
+  challanNumber         String?
+  challanDate           DateTime?
+  vehicleCondition      String    @default("COVERED") // "COVERED", "OPEN"
+  vendorApprovalStatus  String    @default("APPROVED_VENDOR") // "APPROVED_VENDOR", "PROVISIONAL"
+  // Documents
+  coaReceived           String    @default("YES") // "YES", "NO"
+  lrNoDate              String?
+  remarks               String?
+  // Signatures
+  consignmentReceivedBy String?   // "Prem N Patel"
+  checkedByQc           String?   // "Ketan M. Parmar"
+  verifiedByQa          String?   // "Sankarsana Patra"
+  // Linkages
+  recordedById          String?
+  recordedBy            User?     @relation("ChecklistRecordedBy", fields: [recordedById], references: [id])
+  gateEntryId           String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([date])
+  @@index([vehicleNumber])
+  @@index([supplierName])
+}
+
+model RawMaterialInwardRegister {
+  id              String    @id @default(uuid())
+  formatNo        String    @default("ADM/SOP/02/F13")
+  srNo            Int?
+  date            DateTime  @default(now())
+  supplierName    String    // Supplier / Manufacturer Name
+  challanNo       String?
+  challanDate     DateTime?
+  materialName    String
+  quantity        String    // Qty. (No. of Cont. x---kg)
+  poNumber        String?   // "Verbal" or PO-XXXX
+  invoiceNo       String?
+  grnNo           String?   // "92", "93", "94", "95", "96"
+  grnDate         DateTime?
+  mfgDate         DateTime?
+  expDate         DateTime?
+  receiverSign    String?   // Sign / Date
+  remarks         String?   // "Purch. sc"
+  recordedById    String?
+  recordedBy      User?     @relation("RmInwardRecordedBy", fields: [recordedById], references: [id])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([date])
+  @@index([supplierName])
+  @@index([grnNo])
+}
+
+model DetailedGrn {
+  id                    String    @id @default(uuid())
+  formatNo              String    @default("ADM/SOP/02/F12")
+  grnNumber             String    @unique // e.g. "92" or "GRN-092"
+  grnDate               DateTime  @default(now())
+  poNumber              String?   // "Verbal" or PO-XXXX
+  supplierName          String
+  supplierAddress       String?
+  invoiceNo             String?
+  invoiceDate           DateTime?
+  transporterName       String?
+  deliveryChallanNo     String?
+  vehicleNo             String?
+  // Material details
+  materialName          String
+  materialCode          String?   // e.g. "PM04"
+  batchNumber           String?   // e.g. "HP55"
+  mfgDate               DateTime?
+  expDate               DateTime?
+  quantityReceived      String?   // e.g. "247 Nos" or "8000 KG"
+  numberOfContainers    String?   // e.g. "247"
+  // Physical verification
+  materialCondition     String    @default("OK") // "OK", "DAMAGED"
+  packingCondition      String    @default("OK") // "OK", "NOT_OK"
+  labelStatus           String    @default("PROPER") // "PROPER", "IMPROPER"
+  quantityVerified      String    @default("YES") // "YES", "NO"
+  discrepancyObserved   String?
+  // Sampling & QC Status
+  sampledBy             String?   // "Ketan"
+  samplingDate          DateTime?
+  qcReferenceNo         String?   // "A/366/26"
+  statusLabelAffixed    String    @default("APPROVED") // "APPROVED", "QUARANTINE", "REJECTED"
+  remarksDeviations     String?
+  // Approvals
+  storeSupervisorSign   String?   // "Prem N Patel"
+  qcSamplingSign        String?
+  qaApprovalSign        String?
+  status                String    @default("APPROVED") // "PENDING", "APPROVED", "REJECTED"
+  recordedById          String?
+  recordedBy            User?     @relation("DetailedGrnRecordedBy", fields: [recordedById], references: [id])
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([grnDate])
+  @@index([supplierName])
+}
+
+// ----------------------------------------------------
+// 14. PLANT SANITATION & DAILY CLEANING REGISTRIES
+// ----------------------------------------------------
+
+model DailyCleaningBuildingRecord {
+  id                            String    @id @default(uuid())
+  formatNo                      String    @default("F10P714QA02")
+  refNo                         String    @default("P714QA02")
+  monthYear                     String    // e.g. "2026-10"
+  date                          DateTime  @default(now())
+  dayOfMonth                    Int       // 1 to 31
+  // 15 Areas cleaning tick states
+  securityCabinArea             Boolean   @default(true)
+  etpArea                       Boolean   @default(true)
+  tankFarmArea                  Boolean   @default(true)
+  materialVehicleEntryArea      Boolean   @default(true)
+  bldg1StaircaseTerrace         Boolean   @default(true)
+  maintenanceRoomArea           Boolean   @default(true)
+  roPlantArea                   Boolean   @default(true)
+  bldg2StaircaseTerrace         Boolean   @default(true)
+  bldg34EastSideArea            Boolean   @default(true)
+  bldg34WestSideArea            Boolean   @default(true)
+  psychometricEvaporatorPassage Boolean   @default(true)
+  bldg34InBetweenArea           Boolean   @default(true)
+  scrapYardArea                 Boolean   @default(true)
+  bldg3StaircaseTerrace         Boolean   @default(true)
+  bldg4StaircaseTerrace         Boolean   @default(true)
+  // Verification
+  doneBy                        String    // e.g. "Hitesh", "Nitin"
+  checkedBy                     String?   // Supervisor
+  verifiedByQa                  String?   // QA Manager/Officer
+  remarks                       String?
+  recordedById                  String?
+  recordedBy                    User?     @relation("DailyCleaningRecordedBy", fields: [recordedById], references: [id])
+  createdAt                     DateTime  @default(now())
+  updatedAt                     DateTime  @updatedAt
+
+  @@unique([monthYear, dayOfMonth])
+  @@index([monthYear])
+  @@index([date])
+}
+
+
 

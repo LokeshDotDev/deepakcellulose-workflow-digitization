@@ -20,6 +20,7 @@ const DEMO_PROFILES = [
   { email: "fg@deepakcellulose.com", role: "FG Manager", dept: "Finished Goods", name: "Sanjay Verma (FG Store)", color: "bg-teal-600" },
   { email: "dispatch@deepakcellulose.com", role: "Dispatch Manager", dept: "Dispatch", name: "Amit Dave (Dispatch Logistics)", color: "bg-cyan-600" },
   { email: "accounts@deepakcellulose.com", role: "Accounts Manager", dept: "Accounts", name: "Rakesh Trivedi (Finance & 3-Way Match)", color: "bg-orange-600" },
+  { email: "hr@deepakcellulose.com", role: "HR Admin", dept: "HR Admin", name: "Kavita Shah (HR Admin)", color: "bg-fuchsia-600" },
   { email: "management@deepakcellulose.com", role: "Management Viewer", dept: "Management", name: "Deepak Parikh (Director)", color: "bg-slate-700" },
 ];
 

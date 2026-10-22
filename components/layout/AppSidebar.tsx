@@ -21,6 +21,8 @@ import {
   Users,
   X,
   Lock,
+  ClipboardList,
+  Sparkles,
 } from "lucide-react";
 import { SessionUser } from "@/lib/auth";
 
@@ -147,6 +149,51 @@ export function AppSidebar({ user, mobileOpen, onCloseMobile }: AppSidebarProps)
           icon: Receipt,
           requiredRoles: ["SUPER_ADMIN", "ADMIN", "ACCOUNTS_MANAGER", "ACCOUNTS_EXECUTIVE"],
           requiredPermPrefix: "ACCOUNTS",
+        },
+      ],
+    },
+    {
+      title: "HR ADMIN",
+      items: [
+        {
+          label: "HR & Gate Registries",
+          href: "/hr-admin",
+          icon: ClipboardList,
+          highlight: true,
+          requiredRoles: [
+            "SUPER_ADMIN",
+            "ADMIN",
+            "HR_ADMIN",
+            "HR_MANAGER",
+            "GATE_OPERATOR",
+            "SECURITY_OFFICER",
+          ],
+          requiredPermPrefix: "HR",
+        },
+      ],
+    },
+    {
+      title: "DAILY CLEANING",
+      items: [
+        {
+          label: "Daily Cleaning Building Record",
+          href: "/daily-cleaning",
+          icon: Sparkles,
+          highlight: true,
+          requiredRoles: [
+            "SUPER_ADMIN",
+            "ADMIN",
+            "QA_MANAGER",
+            "QA_OFFICER",
+            "QC_MANAGER",
+            "QC_INSPECTOR",
+            "WAREHOUSE_MANAGER",
+            "GATE_OPERATOR",
+            "SECURITY_OFFICER",
+            "PRODUCTION_MANAGER",
+            "MANAGEMENT_VIEWER",
+          ],
+          requiredPermPrefix: "CLEANING",
         },
       ],
     },
